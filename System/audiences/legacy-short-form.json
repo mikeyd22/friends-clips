@@ -1,0 +1,37 @@
+{
+  "schema": "clipping.audience-profile.v1",
+  "id": "legacy-short-form",
+  "name": "Existing short-form house preferences",
+  "platform": "unspecified",
+  "audience": "Existing account; confirm platform and audience per project",
+  "status": "operating_preferences_not_universal_rules",
+  "duration": {"preferred_ceiling_seconds": 33, "hard_ceiling_seconds": 35, "minimum_seconds": null},
+  "transmission": {
+    "published_send_qualifying_fraction": 0.3333333333333333,
+    "shortlist_search_fraction": 0.3333333333333333,
+    "qualifying_score": 3,
+    "requires_specific_recipient_and_x_code": true,
+    "individual_candidate_gate": false,
+    "on_shortfall": "Report honestly; never pad with weak candidates"
+  },
+  "evidence": {
+    "label": "L",
+    "confidence": "low",
+    "observed_posts": 3,
+    "reviewed_on": "2026-08-17",
+    "aggregate": {"views": 9649, "shares": 0, "saves": 3, "comments": 1},
+    "duration_observations": [
+      {"duration_seconds": 31.1, "views_approximate": 8700},
+      {"duration_seconds": 39.1, "views": 858},
+      {"duration_seconds": 42.4, "views": 91}
+    ],
+    "limitations": "Observational n=3; confounded by topic, audience, timing and packaging. Does not establish an optimal duration, a causal Send effect, or statistical significance."
+  },
+  "review": {
+    "published_posts_per_comparable_cohort": 10,
+    "reporting_intervals_hours": [24, 168],
+    "comparison_keys": ["platform", "source_type", "audience_profile", "reporting_interval_hours"],
+    "auto_change_preferences": false,
+    "threshold_meaning": "Prompt a human preference review, not a significance test"
+  }
+}

@@ -1,0 +1,5 @@
+numpy>=2.0
+Pillow>=10.0
+PyYAML>=6.0
+faster-whisper>=1.1
+yt-dlp>=2025.1

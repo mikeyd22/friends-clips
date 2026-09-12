@@ -1,0 +1,432 @@
+preset:
+  id: full-automated-ai-clipping
+  name: Full Automated AI Clipping
+  number: 2
+  type: editing-method
+  version: 4
+  status: approved
+  approved: "2026-08-14"
+  approved_by: user
+  operational: true
+  hardening_approved: "2026-09-06"
+  validation_record: System/qa/method-2-hardening-2026-09-06.md
+  validated_by: >-
+    work/method-2-pilot — two clips end to end: "Speed Tries China KFC"
+    (talk-led, condensed 2.7x, reordered) and "Shaolin Monk Lands Seven
+    Backflips" (action-led, extended from a 22s candidate). Both cut from
+    Speed China Tour episode 01.
+  implementation: Tools/method-2/
+  hook_title_guide: System/methods/hook-title-guide.md
+
+speed:
+  mode: standard
+  fast_mode: false
+  override: explicit user request only
+
+purpose: >-
+  Take a long-form source to delivered vertical short-form clips with no routine
+  human review. Discovery, boundary selection, condensing, reordering,
+  reframing, captioning, packaging, export, and quality assurance all run
+  unattended. Automated gates, not a human, decide what reaches delivery.
+
+analysis:
+  skill: viral-moments
+  rubric: analysis-rubric
+  skill_path: System/viral-moments/SKILL.md
+  rubric_path: System/viral-moments/analysis-rubric.md
+  required: true
+
+operating_mode:
+  human_gate: none
+  scope: general-purpose
+  audience_profile_default: System/audiences/legacy-short-form.json
+  per_run_brief:
+    required: false
+    role: >-
+      Optional free-text statement of what the user wants from this source.
+      Constrains discovery and reweights ranking when present; generic Viral
+      Moments Find mode when absent.
+  failure_routing: >-
+    Any clip failing an automated gate goes to the project review/ queue with a
+    machine-readable reason. Neither delivered nor deleted.
+
+# 1. SOURCE AND TRANSCRIPT INPUTS ------------------------------------------
+
+inputs:
+  acquisition:
+    full_audio: highest available, for transcription and energy analysis
+    analysis_proxy:
+      required: true
+      resolution: 360p
+      rationale: >-
+        Vision-assisted discovery and shot detection must run before ranges are
+        known, so range-only acquisition cannot serve this method.
+      lifecycle: temporary; remove after delivery QA passes
+    delivery_ranges:
+      timing: after the plan is fixed
+      quality: highest available
+      handles_seconds: 30
+  index:
+    transcript_vtt:
+      engine: friends_transcribe_compat
+      contract: System/transcription.md
+      note: >-
+        Own transcription, not platform auto-captions. The pilot showed YouTube
+        auto-caption timings are loose enough to leave slack inside condensed
+        beats, and its rolling-caption duplication corrupts word timing.
+    word_timing_json:
+      required: before final planner boundary lock for speech candidates
+      timing: after scout discovery and planner shortlist; never full-source by default
+      scope: shortlisted source spans plus 30-second handles, merged when overlapping
+      tool: Tools/method-2/m2_index.py --timing-plan <shortlist.json>
+      role: boundary snapping, condensing, caption timing
+      non_verbal: explicitly label non-verbal candidates; use visual boundaries without invented words
+    transcript_coverage:
+      required: true
+      record: index/transcript-coverage.json
+      rule: Retain suspected ASR artifacts in VTT and flag them; unexplained gaps are not silence.
+    shot_list:
+      source: scene detection over the analysis proxy
+      required: true
+    audio_energy_curve:
+      required: true
+      role: >-
+        Locates laughter, shouting, crowd reaction, and silence. Distinguishes a
+        loaded pause from dead air.
+    vision_index:
+      required: true
+      sampling: 1 frame / 5s over the proxy
+      role: >-
+        Visual log of what is on screen. Load-bearing, not optional: the pilot
+        found the strongest verbal payoff sitting on a walking shot with the
+        subject of the clip nowhere on screen.
+  media_alignment_check:
+    required: true
+    tool: Tools/method-2/m2_ranges.py
+    method: >-
+      Verify the downloaded video's native audio against full source audio at
+      multiple positions, or match independent early/middle/late visual anchors
+      against a proxy with verified source alignment. Separately cut replacement
+      audio is never evidence of video alignment. Independently verify the
+      replacement audio as well; both checks must pass. Check cumulative drift.
+    thresholds:
+      tolerance_seconds: 0.5
+      confidence_floor: 12.0
+    on_low_confidence: >-
+      Hold for documented source/transcript or visual verification. Never accept
+      a low-confidence offset just because it lies inside tolerance.
+    report: qa/range-acquisition.json
+    binding: Actual video and audio SHA-256 hashes, source identity and planned offsets.
+    failures: Nonzero exit and a held stage for failed, pending, or empty verification.
+
+# 2. CANDIDATE AND BOUNDARY RULES ------------------------------------------
+
+candidates:
+  discovery:
+    signals: [transcript, audio_energy, vision_index]
+    brief_handling: >-
+      With a brief, retrieve against it first, then add generic discovery finds
+      clearing the same bar. Without a brief, generic discovery only.
+  eligibility_gates:
+    inherited: all six Viral Moments gates
+    added:
+      compressibility: >-
+        Reject any candidate that cannot be condensed to the duration band while
+        preserving meaning, context, and payoff. Judged at planning time.
+      visual_support: >-
+        Reject when the vision index shows the subject of the moment is not
+        visible during the span.
+      duplicate_beat: suppress near-duplicates within one source
+  duration_band:
+    target_seconds: [null, 35]
+    floor_removed: >-
+      The floor was removed on 2026-08-17. Episode 05 showed what a floor does
+      in an automated pipeline: candidate 1 held 16.9s of real content, the
+      then-current 30s floor made the builder reach backward into the handle
+      for the nearest available material, and 15.5s of subscribe-spam and
+      donation chatter was welded onto the front of the clip. The padding
+      landed on the only span that decides whether a clip is watched. A
+      smaller floor would have produced a smaller version of the same defect.
+    extension_rule: >-
+      A clip may be as short as its content. Never extend a clip at the front.
+      When a clip must be lengthened, extend the exit; when the exit has
+      nothing to add, ship it short.
+    preferred_ceiling: 33
+    hard_ceiling: 35
+    rule: >-
+      There is no minimum. Aim to land at or under 33s. Between 33 and 35 is
+      allowed only when the cut genuinely needs the extra seconds to carry its
+      context or let a beat resolve; it is a judgement call for the planner,
+      not a default. Never exceed 35s.
+    evidence: >-
+      Current house preference retained under System/audiences/legacy-short-form.json.
+      Historical support is Local, low confidence, n=3. This is not an estimated
+      optimum or a universal duration rule. Changes require explicit project/user direction.
+    short_candidates: >-
+      A short candidate ships short. It is never padded to reach a length.
+      When it is genuinely incomplete, extend the exit only, under
+      extension_rule; when the exit has nothing to add, deliver it as it is.
+      The historical monk candidate was 22.08s and was extended to 37.9s under
+      the old [30, 45] band. That extension would not be made today.
+    trim_priority: >-
+      Trim the runway, not the resolution. Move the in-point later before
+      moving the out-point earlier. A clip that holds its survivors is losing
+      viewers at the front, not the back.
+  count_per_source:
+    policy: user-specified per project
+    default: >-
+      Scale with source length when the user does not name a number. The
+      Method 2.5 series precedent is ~15 candidates from a 5-6 hour stream.
+  boundaries:
+    in_point: snap to word start minus 120ms, never mid-word
+    out_point: end of payoff word plus breath tail
+    handle_extension:
+      allowed: true
+      rule: >-
+        A beat may run past the approved out-point into the handles to complete
+        a sentence that began inside the span. The pilot needed 3.18s to finish
+        "China KFC is a nine out of 10. I'm not gonna lie."
+
+# 3. VISUAL AND AUDIO EDITING RULES ----------------------------------------
+
+editing:
+  condensing:
+    gap_removal: ai-judged
+    rule: >-
+      No fixed silence threshold. Judge each gap using transcript, energy curve,
+      and vision index together. A held pause carrying visible reaction is
+      content; a pause during transit is dead air.
+    single_shot_sources:
+      jump_cuts: permitted
+      rationale: >-
+        IRL streams are effectively one continuous take. The pilot found two
+        genuine shot cuts in 170s, so a 2.7x condense is impossible without
+        jump-cutting inside a shot. The requirement is scene coherence across
+        the splice, not the absence of a jump.
+    budget: the duration band is a hard budget for the condenser
+  restructure:
+    mode: free-reordering
+    scope: >-
+      The planner may resequence beats within a candidate, including opening on
+      a later line.
+    constraints:
+      - Beats may only come from within the approved span plus handles.
+      - Every reorder must pass the semantic gate on the actual rendered cut.
+      - The clip must still end on a resolved beat.
+  reframing:
+    source_quality_record:
+      required: true
+      fields: [actual_source_width, actual_source_height, crop_magnification, payoff_visibility]
+      rule: >-
+        Export resolution is not source detail. Disclose low-resolution fallback
+        and inspect moving excerpts of action payoffs and every splice. Choose
+        framing to preserve the necessary face, object, action or game interface.
+    default_aspect: "9:16"
+    output: 1080x1920
+    requirement: keep the subject in frame at all times
+    implementation:
+      - Detect subject position per frame over the candidate span.
+      - Heavily low-pass the position track; never follow raw per-frame motion.
+      - >-
+        Prefer one static crop for a continuous shot when the smoothed track
+        stays inside the crop. The pilot's locked centre crop held the subject
+        well in 10 of 11 sampled frames because IRL operators keep the subject
+        centred.
+      - >-
+        When a static crop would lose the subject, use slow eased motion, never
+        stepwise tracking. Inherits the core.md prohibition on snapping,
+        jittering, and subject switching.
+      - Crop position may otherwise change only at genuine source edits.
+      - Ambiguous or multi-person shots fall back to a locked crop.
+    reality_check: >-
+      Locked centre crop is currently the reliable default, not a fallback.
+      Three automatic approaches were tried across two clips: Haar face
+      detection put the crop on bystanders (5 of 14 frames); appearance
+      tracking worked on the KFC clip only because the subject wore a uniquely
+      saturated jersey, and does not transfer; motion tracking locked onto the
+      stream's scrolling chat overlay, and after masking it was still unstable
+      in a wide shot full of moving people. Genuine subject tracking needs a
+      person-detection model that is not installed. Any motion-based analysis
+      must first mask the burned-in stream furniture on the right ~18% of frame.
+  audio:
+    loudness_target_lufs: -14
+    true_peak_ceiling_dbtp: -1.0
+    chain: two-pass loudnorm, then limiter at 0.72
+    limiter_ceiling: >-
+      alimiter caps SAMPLE peak; the technical gate measures TRUE peak
+      (ebur128 peak=true), which runs 1.0-1.3 dB higher on percussive
+      material. A 0.83 ceiling (-1.6 dBFS sample) let four episode-03 clips
+      out at -0.3 to -0.7 dBTP against the -1.0 limit. 0.72 is -2.85 dBFS
+      sample, leaving headroom for intersample overshoot. Integrated loudness
+      is unaffected; this only tames transients.
+    two_pass_required: >-
+      Single-pass loudnorm missed the target and left true peak at 0.0 dBFS.
+      Measure with print_format=json, then apply with measured_* and
+      linear=true. Result: -13.8 LUFS, -1.5 dBTP.
+    validated: >-
+      Pilot without a limiter produced +0.4 dBFS true peak (clipping). With the
+      chain: -13.1 LUFS, -1.3 dBTP.
+    filler_removal: off — user specified filler words stay in
+    music: TBD (off unless specified)
+
+# 4. CAPTION AND PACKAGING RULES -------------------------------------------
+
+hook_title:
+  enabled: true
+  optional: true
+  definition: >-
+    On-screen hook text shown near the start to stop the scroll. NOT subtitles
+    (spoken-word transcription), NOT the post caption (upload description), NOT
+    the clip's internal name.
+  guide: System/methods/hook-title-guide.md
+  process: >-
+    Follow the guide: payoff -> missing context -> strongest honest gap -> at
+    least ten options -> trim -> verify the promise -> 10-point checklist.
+  typography:
+    target: 2 lines at 95-105px
+    fallback: 3 lines at ~90px when context cannot be cut
+    never: 4 or more lines
+    font: System/fonts/tiktok-sans/TikTokSans-Variable.ttf, weight 900
+    fill: white
+    stroke: 6px black
+    max_text_width_px: 640
+    position: centred, y ~470 (upper third)
+    emoji: inline at end of the last line with a clear space, never floating below
+    line_balance: never leave 1-2 short words alone on the last line
+    writing_consequence: >-
+      Type size is what stops the scroll and length costs type size. Aim for
+      4-7 words.
+  house_style: selective CAPS on emphasised words; emojis 👀 😭 💔 🥀
+  duration: first ~4s by default
+  renderer:
+    method: PIL to transparent PNG, composited with the ffmpeg overlay filter
+    rationale: local ffmpeg has neither drawtext nor libass
+    emoji_note: >-
+      Apple Color Emoji ships only fixed sbix strikes; render at 160px and
+      scale down.
+  safe_zone: System/overlays/tiktok-organic-safe-zone-1080x1920.png
+
+subtitles:
+  enabled: false
+  note: >-
+    Speech-to-text subtitles are OFF unless requested by name. A v0.5 pilot
+    built them by mistake from the word "captions"; see hook_title.definition.
+
+packaging:
+  clip_name: preserve the planner's approved candidate name
+  cover_frame: >-
+    Chosen by the vision index; subject clearly visible, in focus, not mid-blink.
+  title_and_description: not generated — user specified these stay off
+  filename_convention: TBD
+
+# 5. EXPORT AND QUALITY ASSURANCE ------------------------------------------
+
+export:
+  container: mp4, faststart
+  video_codec: H.264 high profile, yuv420p
+  resolution: 1080x1920
+  frame_rate: follow source cadence
+  audio_codec: AAC 192k, 48kHz stereo
+
+quality_assurance:
+  role: >-
+    Load-bearing. With no human gate, these checks are the only thing between a
+    bad render and the delivery folder.
+  audio_content_gate:
+    trigger: every speech clip
+    method: Transcribe the actual rendered output to VTT and compare planned content words.
+    threshold: 0.25 content-word overlap
+    purpose: Detect unrelated or missing audio; word overlap is not proof of meaning.
+    non_verbal: Explicit non-verbal beats are excluded; wholly non-verbal clips require visual review.
+    on_fail: route to review/
+  semantic_gate:
+    required: true
+    reviewer: clip_planner
+    evidence: Actual rendered VTT, approved EDL, relevant source VTT context and visual evidence.
+    checks: [meaning_and_qualifiers, speaker_attribution, opening_promise, payoff_completion, reorder_context]
+    binding: Exact final render, EDL and rendered VTT hashes.
+    scope: >-
+      Reuse the planner for bounded review of the actual cut. Every reorder and
+      flagged boundary needs explicit review; unaffected candidate discovery is
+      never reopened. No routine human approval is added.
+    on_missing_or_uncertain: Hold the clip for planner review.
+  continuity_gate:
+    implemented: true
+    implementation_note: >-
+      Shared tools extract evidence and enforce a completed hash-bound agent
+      review; they do not pretend frame extraction is automatic visual judgment.
+    method: Still frames and moving excerpts at opening, exit, every splice and payoff.
+    splice_classes:
+      ordinary_condense_splice: Preserve scene coherence; a deliberate jump cut is allowed.
+      reorder_seam: An intentional location/framing change must preserve understandable context.
+    also_checks: [crop_jitter, crop_snapping, subject_switching, payoff_visibility, source_detail, moving_cadence]
+    on_missing_or_fail: Hold for review; never auto-deliver.
+  technical_gate:
+    checks:
+      - duration inside the band
+      - no black or frozen first frame
+      - hook title clear of the safe zone
+      - integrated loudness on target, true peak under ceiling
+      - frame cadence continuous
+      - video and audio durations aligned within 0.10s
+      - no frozen tail (freezedetect)
+    on_fail: route to review/
+
+feedback_loop:
+  analytics_ingest:
+    enabled: true
+    tool: Tools/method-2/m2_feedback.py
+    input: User-supplied post metrics linked to the exact published render and pre-publication predictions.
+    comparisons: Same platform, source type, audience profile, and reporting interval.
+    metrics: [retention, completion_rate, shares_per_view, saves_per_view, comments_per_view]
+    guardrail: >-
+      Missing data stays missing. Small observational cohorts never establish
+      causality. Reports suggest a preference review; they do not change gates,
+      duration limits, ranking weights or the sharing target automatically.
+
+pipeline:
+  multi_agent_required: true
+  stages:
+    - {stage: intake, owner: user, output: [source URL, optional brief, clip count]}
+    - {stage: acquire-audio-and-proxy, owner: clip_executor}
+    - {stage: index, owner: clip_executor, output: [VTT, coverage record, shot list, energy curve, vision index]}
+    - {stage: discover, owner: clip_scout}
+    - {stage: shortlist, owner: clip_planner, output: source spans for selected timing}
+    - {stage: selected-word-timing, owner: clip_executor, output: words for shortlisted spans plus handles only}
+    - {stage: plan-and-lock, owner: clip_planner, output: approved per-clip edit decision list}
+    - {stage: acquire-ranges, owner: clip_executor}
+    - {stage: verify-alignment, owner: clip_executor}
+    - {stage: assemble, owner: clip_executor}
+    - {stage: reframe-and-hook, owner: clip_executor}
+    - {stage: draft-and-review-evidence, owner: clip_executor}
+    - {stage: targeted-meaning-review, owner: clip_planner}
+    - {stage: final-render-and-qa, owner: clip_executor}
+    - {stage: final-meaning-confirmation, owner: clip_planner}
+    - {stage: delivery-gate, owner: clip_executor, routing: "current passes to deliverables; pending or failed to review/"}
+    - {stage: feedback, owner: clip_executor, trigger: when the user supplies post analytics}
+
+guardrails:
+  - Preserve the speaker's meaning and material qualifiers through every reorder.
+  - Keep hooks truthful. Never open on a promise the clip does not deliver.
+  - Do not manufacture outrage, certainty, conflict, or false novelty.
+  - Automated scores are decision support, not a guarantee of reach.
+  - Do not deliver a clip that failed any gate.
+
+render_engineering:
+  quality: Draft by default; final is an explicit build option after draft review.
+  policy_resolution: >-
+    The coordinator copies workflow.audience_profile into the EDL audience_profile
+    field. m2_policy.py reads the profile for duration defaults. Explicit approved
+    EDL duration_policy overrides are allowed; analytics never writes them.
+  beat_cache: Reuse only unchanged units with matching source identities, crop, timing and encode settings.
+  parallelism: Bounded independent technical operations after plan approval; editorial stages remain sequential.
+  per_beat_rendering: >-
+    Render each beat separately and concatenate. A single filter graph stalls on
+    reordered edits: with the cold open sourced from t=136s, concat blocks
+    waiting for the end of the file while every earlier decoded frame buffers.
+  overlay_compositing: >-
+    Never chain many looped PNG inputs — 29 of them ran at ~13 KB/s. Composite
+    into one alpha track, or use a single image input with enable=between().
+  output_duration: >-
+    Clamp the final encode to the base duration. An overlay track longer than
+    the picture silently freezes the last frame.

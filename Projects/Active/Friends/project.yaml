@@ -1,0 +1,36 @@
+series:
+  name: "Friends"
+  type: recurring-source-project-index
+  status: active
+  folder_rule: "YYYY-MM-DD - source video title"
+  date_rule: "Use the date the user requested the clip"
+  deliverables_folder: "deliverables"
+  style_guide: "STYLE-GUIDE.md"
+
+defaults:
+  editing_method: full-automated-ai-clipping
+  speed:
+    mode: standard
+    fast_mode: false
+  multi_agent_required: true
+  agents:
+    clip_scout: {model: gpt-5.6-luna, reasoning: max}
+    clip_planner: {model: gpt-5.6-sol, reasoning: high}
+    clip_executor: {model: gpt-5.6-luna, reasoning: max}
+  rubric: System/viral-moments/analysis-rubric.md
+  style_guide: STYLE-GUIDE.md
+  create_one_project_per_source: true
+  nest_source_projects_in_runs: false
+  minimum_clip_count: 3
+  selection_policy: "Quality over quantity; render every qualifying distinct scene and never pad with weak or duplicate moments"
+  duration_seconds:
+    minimum: 60
+    maximum: natural-complete-scene
+    typical_range: "60 to 180 seconds"
+  planning_targets:
+    - {source_minutes: 10, expected_clips: 5}
+    - {source_minutes: 20, expected_clips: 8}
+    - {source_minutes: 30, expected_clips: 12}
+  planning_targets_are_hard_limits: false
+
+projects: []

@@ -1,0 +1,40 @@
+# Source media and rendered media stay outside GitHub.
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.m4a
+*.mp3
+*.wav
+*.flac
+*.aac
+
+# Per-run media, caches, frames, and generated evidence.
+source/
+runs/
+deliverables/
+review/
+_cache/
+index/
+qa/
+work/
+*.npy
+*.onnx
+
+# Local environments, credentials, and operating-system files.
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+.env
+.env.*
+*.pem
+*.key
+cookies.txt
+*.cookies
+
+# Local Codex session data.
+.codex/sessions/
+.codex/archived_sessions/
